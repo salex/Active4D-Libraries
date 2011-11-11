@@ -1,0 +1,631 @@
+/*
+  hash library
+  
+  Hash is beta library that will serialize deeply nested collection in a blob. The blob can then
+  be stored in the DB or a file. That blob can then be unserialized back into a collection. Hash is
+  just another name for Collections (or associated array). I used it because it more closely follows
+  Ruby and other language implementation.
+  
+  see read me for more details
+  
+*/
+
+
+
+library "hash"
+
+
+/************************************************************************************************
+  constructor
+  
+  Purpose:  Create a serial data object. mainly to define the blob that contains the seralized collection.
+  Require:  Nothing
+  Promise:  An object is returned to which values can be added.
+  Errors:   None
+  
+  Parameters: none
+  RESULT    <-  serial object
+************************************************************************************************/
+
+  method "new"
+    $c := new collection("__class__"; current library name;"level" ; -1)
+    c_blob($c{"_serial"})
+    return($c)
+  end method
+    
+  /************************************************************************************************
+    serialize
+
+    Purpose:  Add a value to a JSON data object.
+    Require:  $self was created with new()
+    Promise:  $inValue will be output in JSON format with toJSON().
+    Errors:   None
+
+    Parameters:
+    $self   ->  serial object
+    $inCollection   ->  Collection - The input collection you want to serialize
+    RESULT    <-  serial object with YAML like blob    $self
+  ************************************************************************************************/
+  
+  method "serialize"($self;$inCollection)
+    $self{"level"}++
+    for each ($inCollection; $key; $value)
+      if (_is_a_coll($value))
+        $out := '$key' + "\n"
+        text to blob(_set_level($self;$out);$self{"_serial"};Text without length;*)
+        serialize($self;$value)
+        $self{"level"}--
+      else
+        $val := _set_val($value)
+        $out := ':$key := $val' + "\n"
+        text to blob(_set_level($self;$out);$self{"_serial"};Text without length;*)
+      end if
+    end for each
+    return($self{"_serial"})
+  end method
+
+  /************************************************************************************************
+		unserialize and alias toCollection
+
+		Purpose:	Get the values of a YAML like data object and create an A4D collection.
+		Require:	$self was created with new()
+		Promise:	The result is valid A4D collection.
+		Errors:		None
+
+		Parameters:
+		$self		->	serial object
+		RESULT		<-	Collection
+	************************************************************************************************/
+	
+	method "toCollection"($yaml)
+	  // $serial can be text or blob
+    global($keys;$c)
+    global($__elements__)
+    return(hash.unserialize($yaml))
+	end method
+	
+  method "unserialize"($serial)
+    // $serial can be text or blob
+    global($keys;$c)
+    global($__elements__)
+    
+    array text($lines;0)
+    if (type($serial) = 30)
+      blob_to_text_array($serial;$lines)
+    else
+      split string($serial;"\n";$lines)
+    end if
+    $curr := -1
+    $c := new collection
+    $children := ""
+    array text($keys;10)
+
+    for each ($lines; $line; $index)
+      $line := trim($line)
+      
+      if (($line = "") | ("//" ~ $line))
+        continue
+      end if
+      
+      $tab := 1
+      while ($line[[$tab]] = "-")
+        $tab++
+      end while
+      $tab--
+      if ($tab > 0)
+        $line := trim(substring($line;$tab + 1))
+      end if
+
+      case of
+        :($tab = 0)
+          if ($children) // add children 
+            _set_child_node($tab;$children)
+          end if
+          if ($line =~ "/:=/") // add child to root
+            $c := merge collections($c;hash.newColl($line))
+          else
+            $key := $line
+            $keys{$tab} := $key
+            $c{$key} := new collection
+          end if
+          $curr := 0
+          
+        :($tab = $curr)
+          if ($line =~ "/:=/") // append child
+            $children += $line+";;"
+          else
+             _make_new_node($tab -1;$tab;$line)
+          end if
+        :($tab > $curr)
+          if ($children) // add children 
+            _set_child_node($tab - 1;$children)
+          end if
+          if ($line =~ "/:=/") // append child
+            $children := $line+";;"
+          else
+            _make_new_node($curr;$tab;$line)
+          end if
+          $curr := $tab
+
+        :($tab < $curr)
+          if ($children) // add children
+            _set_child_node($curr - 1;$children)
+          end if
+          if ($line =~ "/:=/") // append child
+            $children := $line+";;"
+          else
+            _make_new_node($tab - 1;$tab;$line)
+          end if
+          $curr := $tab
+      end case
+    end for each
+    if ($children) // clean up any options after last line
+      _set_child_node($curr-1;$children)
+    end if
+    return($c)
+  end method
+  
+  /************************************************************************************************
+		blob_to_text_array
+
+		Purpose:	Convert the serial blob, which is the newline delimited text to a text array.
+		Require:	the serial blob and a pointer to the array to store the lines
+		Promise:	The result is updated text array.
+		Errors:		None
+
+		Parameters:
+		$blog		->	An uncompressed blob
+		RESULT		<-	Text array
+	************************************************************************************************/
+  
+  method "blob_to_text_array"($blob;&$arr)
+    $BlobPos:=0
+    $BlobText:=""
+    $BlobSize:=BLOB size($Blob)
+    While ($BlobPos<$BlobSize)
+      $BlobText:=BLOB to text($Blob;Text without length ;$BlobPos;LesserOf (MAXTEXTLEN ;($BlobSize-$BlobPos)))
+      if ($blobPos < $blobSize)
+        $last_lf := position("\n";$BlobText;-1;*)
+        $BlobPos := 0
+        $BlobText:=BLOB to text($Blob;Text without length ;$BlobPos;$last_lf )
+      end if
+      
+      if(size of array($arr) = 0)
+        $cnt := split string($BlobText;"\n";$arr)
+      else
+        $cnt := split string($BlobText;"\n";$rem_arr)
+        for each ($rem_arr; $value; $index)
+          $arr{} := $value
+        end for each
+      end if
+    End while 
+  end method
+  
+  /************************************************************************************************
+		array_new
+
+		Purpose:	Provide an alterate way to define arrays.
+		Require:	The current form requires a global $__elements__ in order to
+		          create an array in a methode and return it.
+		Promise:	The result is an array.
+		Errors:		None
+
+		Parameters:
+		$string		->	The yml version of a array t[], i[], r[], d[], p[], b[]
+		RESULT		<-	Text array
+	************************************************************************************************/
+  
+  method "array_new"($string)
+    global($__elements__)
+    $content := trim($string)
+    $type := $content[[1]]
+    $error := ($content[[2]] # "[") & ($content[[-1]] # "]")
+    $content := substring($content;3; length($content) -3)
+    write to console($content)
+    $e := _get_elements($content;$type)
+    case of
+      :($type = "p")
+        execute("array pointer($__elements__;*;"+$e+")")
+      :($type = "d")
+        execute("array date($__elements__;*;"+$e+")")
+      :($type = "b")
+        execute("array boolean($__elements__;*;"+$e+")")
+      :($type = "r")
+        execute("array real($__elements__;*;"+$e+")")
+      :($type = "i")
+        execute("array longint($__elements__;*;"+$e+")")
+      :($type = "t")
+        execute("array text($__elements__;*;"+$e+")")
+    end case
+    return($__elements__)
+  end method
+
+  /************************************************************************************************
+		newColl
+
+		Purpose:	Implements a Ruby like scheme to create a new hash to create a new A4D collectiion.
+		Require:	a string containing the new collection parameter in the form ":key := value {; :key := value; ...}"
+		Promise:	The result is ab A4D collection.
+		Errors:		None
+
+		Parameters:
+		$string		->	modified new collection parameters
+		RESULT		<-	Collection
+	************************************************************************************************/
+  
+  method "newColl"($kv)
+    if ($kv[[-2]] = ";")
+      $kv := substring($kv;1;length($kv) - 2)
+    end if
+    
+    split string($kv;";;";$pairs;false)
+    $estring := ""
+    for each ($pairs; $pair; $index)
+      split string($pair;":=";$tmp;false)
+      $key := trim($tmp{1})
+      $value := trim($tmp{2})
+      $key := choose($tmp{1}[[1]] = ":"; substring($tmp{1};2) ; $tmp{1})
+      // check if value is an array
+      if ($value =~ "/^[tirbpd]\[/")
+        $value := 'hash.array_new("""$value""")'
+      end if 
+      // check if we have a symbol 
+      if ($value[[1]] = ":")
+        $value := '"`substring($value;2)`"'
+      end if          
+      // populate the execution string
+      $estring += '"$key"; $value;'
+    end for each
+    $estring := substring($estring;1;length($estring) - 1)
+    $result := execute('return(new collection($estring))')
+    return($result)
+    
+  end method
+  
+     
+  /********* Private Methods**********/
+  
+  /********* 
+  _get_elements
+  
+  parses the content of an array definition and uses join arrays to format the data
+  for an array definition.
+  **********/
+
+  method "_get_elements"($content;$type)
+    array text($tmp;0)
+    case of
+      :($type = "t")
+        // TODO probably need to parse quoted str
+        if (";" ~ $content)
+          split string($content;";";$tmp)
+          for each ($tmp; $value; $index)
+            $tmp{$index} := $value
+          end for each
+        else
+          split string($content;" ";$tmp)
+        end if
+                
+      :($type = "d")
+        split string($content;" ";$tmp)
+        for each ($tmp; $date; $index)
+          $tmp{$index} := 'date("$date")'
+        end for each
+      else
+        split string($content;" ";$tmp)
+    end case
+    $e := choose($type = "t"; join array($tmp;"; ";1;false;true); join array($tmp;"; "))
+    write to console($e)
+    return($e)
+  end method
+  
+  
+  
+  /********* 
+  _set_level
+  
+  used at each line to define the nesting level, should probably use tabs
+  if level > 0, the "-" is peepended on the YAML like line
+  **********/
+  
+  method "_set_level"($self;$val)
+    if ($self{"level"} > 0)
+      for ($i; 1; $self{"level"})
+        $val := "-" + $val
+      end for
+    end if
+    return($val)
+  end method
+  
+  /********* 
+  _is_a_coll
+  
+  alias to "is a collection" to first determine if a "value" in a key,value collection loop is a collection
+  **********/
+  
+  method "_is_a_coll"($value)
+    $result := false
+    if (type($value) = 9)
+      if (is a collection($value))
+        $result := true
+      end if
+    end if
+    return($result)
+  end method
+
+  /********* 
+  _set_val
+  
+  Purpose: wrap a value in a key/value loop in double quotes if a string
+  TODO  Add date and any other types we want to define
+  **********/
+
+    /*
+    Constant  Type  Value
+   0  Is Alpha Field  Long Integer    0-
+   1  Is Real Long Integer            1-
+   2  Is Text Long Integer            2-
+   3  Is Picture  Long Integer        3
+   4  Is Date Long Integer            4-
+   5  Is Undefined  Long Integer      5
+   6  Is Boolean  Long Integer        6-
+   7  Is Subtable Long Integer        7
+   8  Is Integer  Long Integer        8-
+   9  Is LongInt  Long Integer        9-
+  11  Is Time Long Integer           11-
+  13  Array 2D  Long Integer         13
+  14  Real array  Long Integer       14-
+  15  Integer array Long Integer     15-
+  16  LongInt array Long Integer     16-
+  17  Date array  Long Integer       17-
+  18  Text array  Long Integer       18-
+  19  Picture array Long Integer     19
+  20  Pointer array Long Integer     20-
+  21  String array  Long Integer     21-
+  22  Boolean array Long Integer     22-
+  23  Is Pointer  Long Integer       23-
+  24  Is String Var Long Integer     24-
+  30  Is BLOB Long Integer           30
+    */
+
+  method "_set_val"(&$val)
+    $type := type($val)
+    if (is array(type($val)))
+    end if
+    
+    case of
+      :(($type = 16) | ($type = 15) )
+        $e := join array($val;" ")
+        return('i[$e]')
+        
+      :($type = 14)
+        $e := join array($val;" ")
+        return('r[$e]')
+        
+      :($type = 17)
+        $e := join array($val;" ")
+        return('d[$e]')
+        
+      :(($type = 18) | ($type = 21))
+        $e := join array($val;"; ";1)
+        return('t[$e]')
+   
+      :($type = 20)
+        $e := join array($val;" ";1)
+        return('p[$e]')
+        
+      :($type = 22)
+        $e := join array($val;" ";1)
+        return('b[$e]')
+        
+      :($type = 4)
+        return('date("$val")')
+        
+      :($type = 23)
+        $valueStr := a4d.utils.getPointerReferent($val)
+        return($valueStr)
+        //return("\"Pointers not implemented\"")
+      :(($type = 0) | ($type = 24) | ($type = 2))
+        $val := replace string($val;"\"";"&apos;")
+        return('"$val"')
+      :(($type = 8) | ($type = 9)| ($type = 1)| ($type = 11)| ($type = 6))
+        return($val)
+      else
+        
+        return('"Type $type is not implemented"')
+    end case
+  end method
+  
+  
+  /********* 
+  _getKeyedCollection
+  
+  Purpose: create a text version of a collection key ($c{key1}{key2}{key...}) dependant on a tab level in an array of keys
+  the result is used in execute statements
+  
+  **********/
+  
+  method "_getKeyedCollection"($tab)
+    global($keys;$c)
+    $ck := "$c"
+    for ($i; 0; $tab)
+      $ck += '{"$keys{$i}"}'
+    end for
+    return($ck)
+  end method
+  
+  /********* 
+  _make_new_node
+  
+  add a new node/level to a collection (nesting)
+  
+  **********/
+  
+  method  "_make_new_node"($tab;$keyp;$line)
+    global($keys;$c)
+    $t := $c
+    for ($i; 0; $tab)
+      $t := $t{$keys{$i}}
+    end for
+    $key := $line
+    $keys{$keyp} := $key
+    $t{$key} := new collection
+  end method
+
+  /********* 
+  _set_child_node
+  
+  create new node(s) in a nested collection based on an option string
+  
+  **********/
+  
+  method  "_set_child_node"($tab;&$children)
+    global($keys;$c)
+    $ck := _getKeyedCollection($tab)
+    $o := hash.newColl($children) //substring($children;1;length($children) - 1))
+    execute($ck+" := merge collections("+$ck+";$o)")
+    $children := ""
+  end method
+
+/********   SIMPLE TEST METHOD ************/
+
+  method "test"
+    
+    $YAML_like_text := """
+      cu_02
+      -answers
+      --01
+      ---:id := "01"
+      ---:name := :Yes
+      ---:other := ""
+      ---:text := "Yes"
+      ---:value := "1"
+      --02
+      ---:id := "02"
+      ---:name := "No"
+      ---:other := ""
+      ---:text := "No"
+      ---:value := "0"
+      -:critical := False
+      -:display := "list"
+      -:min := 0
+      -:name := "Ready to Work"
+      -:score := "sum"
+      -:text := "Do you have an Alabama Certified Worker (ACW) Certificate?"
+      -:type := "radio"
+      -:weight := 0
+      cu_03
+      -answers
+      --01
+      ---:id := "01"
+      ---:name := "Shipfitting"
+      ---:other := ""
+      ---:text := "Shipfitting"
+      ---:value := "1"
+      --02
+      ---oh a two := "02"
+      ---:name := "Aluminum/Copper/Nickel Welding"
+      ---:other := ""
+      ---:text := "Aluminum/Copper/Nickel Welding"
+      ---:value := "1"
+      --03
+      ---:id := "03"
+      ---:name := "Shipyard Terminology"
+      ---:other := ""
+      ---:text := "Shipyard Terminology"
+      ---:value := "1"
+      --04
+      ---:id := "04"
+      ---:name := "Math with Metrics"
+      ---:other := ""
+      ---:text := "Math with Metrics"
+      ---:value := "1"
+      --05
+      ---:id := "05"
+      ---:name := "Craft Tools"
+      ---:other := ""
+      ---:text := "Craft Tools"
+      ---:value := "1"
+      --06
+      ---:id := "06"
+      ---:name := "None of the above"
+      ---:other := ""
+      ---:text := "None of the above"
+      ---:value := "0"
+      ---:array_t := t[now is the time!]
+      -:critical := False
+      -:display := "list"
+      -:min := 0
+      -:name := ""
+      -:score := "sum"
+      -:text := "Please check all of the skills below that you have used in your work within the last five years."
+      -:type := "checkbox"
+      -:weight := 100
+      :array_i := i[77878 78.88 78.3 5566566 778] 
+      :array_r := r[77878 78.88 78.3 5566566 778] 
+      :array_b := b[true true false true false]
+      // you will have to add pointers in your DB then unomment the below line
+      //:array_p := p[->[citizeb]id ->[citizen]birthmmdd ->[webuser]]
+      :array_t := t[jhkh khh kjh kkhkh]
+      :array_t2 := t[jhkh;   khh;kjh ;kkhkh]
+      :array_d := d[!11/11/2012! !1/11/2011! !05/1/2012!]
+      :adate := date("11/11/11")
+      :adate1 := !11/11/2012!
+      :bool := true
+      foo
+      -:when := date("11/11/11")
+      -:active := true
+      -why
+      --:because := t[I want to; I can; I am bored]
+      // This is a comment. The above is an array form  text, integer, real, boolean, pointer and date arrays supported
+      --:note := "can also use word version of text array t[one two three], i.e. no semicolon delimiters"
+      bar
+      -:when := !12/12/12!
+      -:active := false
+      -:cost := 3745.23
+
+      // you will have to add pointers in your DB then unomment the below line
+      //:apoint := ->[citizen]id
+      //:atime := time("13:33:01")
+      //TODO time
+"""
+   
+    $start := milliseconds
+    c_blob($blob)
+    // convert text to blob
+    text to blob($YAML_like_text;$blob;Text without length;*)
+  
+    writebr("<b>Test YAML</b>")
+    writebr("<textarea rows=\"5\" cols=\"79\">"+$YAML_like_text+"</textarea>")
+    
+    $start := milliseconds
+    
+    $inColl := hash.unserialize($blob)
+    writebr("milliseconds for process - " + (milliseconds - $start))
+  
+    writebr("<b>The input collection</b>")
+    a4d.debug.dump collection($inColl;"in hash";true)
+
+    // serialize it again
+    $start := milliseconds
+    $serialized := hash.new
+    $outBlob := $serialized->serialize($inColl)
+    writebr("milliseconds for process - " +( milliseconds - $start))
+  
+  
+    // serialized results 
+    $BlobPos:=0
+    $BlobText:=BLOB to text($outBlob;Text without length ;$BlobPos)
+    writebr("<b>the unserialized results</b>")
+    writebr("<textarea rows=\"5\" cols=\"79\">"+$BlobText+"</textarea>")
+
+    // one more time
+    $start := milliseconds
+    $outColl := hash.unserialize($outBlob)
+    writebr("milliseconds for process - " +( milliseconds - $start))
+  
+    writebr("<b>The output collection</b>")
+    a4d.debug.dump collection($outColl;"out hash";true)
+  end method
+
+end library
