@@ -1,10 +1,10 @@
 ### Hash library
 
-Hash is beta library that will serialize deeply nested collection in a blob. The blob can then
+Hash is beta library that will serialize deeply nested collection into a blob. The blob can then
 be stored in the DB or a file. That blob can then be unserialized back into a collection.
 
 It also provides an alternate way of defining and populating new collection. This could be used to parse a 
-configuration file.
+configuration file, etc.
 
 My need for nested serialization is the result of a prototype circuit that never
 moved to a table implementation. Collections in the prototype emulated the tables.
@@ -16,7 +16,7 @@ method is almost 4 times faster (32k in 2 seconds versus 8 seconds)
 
 I tried to use JSON but it also has the 32K text limit and I didn't feel like parsing a blob.
 
-This approach uses a YAML like structure. The current version will serialize most simple data in the key value pairs.
+This approach uses a [YAML](http://en.wikipedia.org/wiki/YAML) like structure. The current version will serialize most simple data in the key value pairs.
 Basically numbers, boolean, dates, pointer and text. It also will handle arrays of the simple types.
 
 What is not implemented: time, blob, picture, undefined, subtable and 2d arrays
@@ -70,3 +70,28 @@ $collection := hash.toCollection("""
     -:records := i[787 5556 6657 1 33]
 """)
 ```
+
+### Main Methods
+
+* method "new"
+	* Allow poor man's object notation and defines a blob
+* method "serialize"($self;$inCollection)
+	* Serializes a collection using YAML like format into a blob
+* method "unserialize"($serial)
+	* Unserializes the blob back into a collection
+* method "toCollection"($yaml)
+	* Alias to unserialize, but you can pass YAML as text (actually in both)
+* method "blob_to_text_array"($blob;&$arr)
+	* Utility to convert the blob to a text array, for 4.5, takes into account 32k text limit
+* method "array_new"($string)
+	* Utility to convert a custom YAML format to create arrays
+	* Can be used stand alone, but requires a global. If someone knows how to create an array in a method another way, I am all ears.
+* method "newColl"($kv)
+	* utility that collects YMAL hash assigments and executes a new collection command
+	
+	
+### Test Method
+
+There is a simple test method at the end of the libary that test all the data types.  You will have to uncomment the pointers to user local pointes.
+
+Just put the library somewhere in you library path and write a test script that calls hash.test
