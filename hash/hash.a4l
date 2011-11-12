@@ -221,7 +221,6 @@ library "hash"
     $type := $content[[1]]
     $error := ($content[[2]] # "[") & ($content[[-1]] # "]")
     $content := substring($content;3; length($content) -3)
-    write to console($content)
     $e := _get_elements($content;$type)
     case of
       :($type = "p")
@@ -315,7 +314,6 @@ library "hash"
         split string($content;" ";$tmp)
     end case
     $e := choose($type = "t"; join array($tmp;"; ";1;false;true); join array($tmp;"; "))
-    write to console($e)
     return($e)
   end method
   
@@ -325,13 +323,16 @@ library "hash"
   _set_level
   
   used at each line to define the nesting level, should probably use tabs
-  if level > 0, the "-" is peepended on the YAML like line
+  if level > 0, the "-" is prepended on the YAML like line. Tabs added
   **********/
   
   method "_set_level"($self;$val)
     if ($self{"level"} > 0)
       for ($i; 1; $self{"level"})
         $val := "-" + $val
+      end for
+      for ($i; 1; $self{"level"}) // add tabs for readability
+        $val := "  " + $val
       end for
     end if
     return($val)

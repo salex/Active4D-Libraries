@@ -39,16 +39,16 @@ The rules are simple
 
 ```
 foo
--:when := date("11/11/11")
--:active := true
--why
---:because := t[I want to; I can; I am bored]
-// This is a comment. The above is an array form.  text, integer, real, boolean, pointer and date arrays supported
---:note := "can also use word version of text array t[one two three], i.e. no semicolon delimiters"
+  -:when := date("11/11/11")
+  -:active := true
+  -why
+    --:because := t[I want to; I can; I am bored]
+    // This is a comment. The above is an array form.  text, integer, real, boolean, pointer and date arrays supported
+    --:note := "can also use word version of text array t[one two three], i.e. no semicolon delimiters"
 bar
--:when := !12/12/12!
--:active := false
--:cost := 3745.23
+  -:when := !12/12/12!
+  -:active := false
+  -:cost := 3745.23
 ```
 
 With herdoc text, you can even use it to replace new collection with initial values
