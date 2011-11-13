@@ -263,7 +263,7 @@ library "hash"
       split string($pair;":=";$tmp;false)
       $key := trim($tmp{1})
       $value := trim($tmp{2})
-      $key := choose($tmp{1}[[1]] = ":"; substring($tmp{1};2) ; $tmp{1})
+      $key := choose($key[[1]] = ":"; substring($key;2) ; $key)
       // check if value is an array
       if ($value =~ "/^[tirbpd]\[/")
         $value := 'hash.array_new("""$value""")'
