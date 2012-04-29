@@ -1,0 +1,364 @@
+/*
+  HTML library
+  Helpers for form and basic HTML tags and operations on tags
+  
+  All tag methods can have an options collection passed to it which will
+  set tag attributes.
+  
+  
+*/
+
+
+
+library "html"
+
+  method "__init__"
+    self{"LabelDataWrapper"} := "tr"
+    self{"LabelWrapper"} := "th"
+    self{"DataWrapper"} := "td"
+    self{"labelFor"} := false
+    self{"labelBreak"} := false
+    self{"LabelDataClass"} := ""
+    self{"LabelClass"} := ""
+    self{"DataClass"} := ""
+    self{"labelForClass"} := ""
+    
+  end method
+  
+  method "get_labelData"
+    return(self)
+  end method
+  
+  method "set_labelData"($coll)
+    if (type($coll) is longint)
+      if (is a collection($coll))
+        for each ($coll; $key; $value)
+          self{$key} := value
+        end for each
+      end if
+    end if
+  end method
+
+  /***********************************************************************************
+    Form tags
+      generates input, select and textarea tags including setting the value and any html options
+
+      method "check_box_tag"($name;$val;$opt=0)
+      method "hidden_field_tag"($name;$val;$opt=0)
+      method "password_field_tag"($name;$val;$opt=0)
+      method "radio_button_tag"($name;$val;$opt=0)
+      method "select_tag"($name;$selopt;$opt=0)
+      method "textarea_tag"($name;$val;$opt=0)
+      method "text_field_tag"($name;$val;$opt=0)
+      
+      Form tags (input, select, textarea) will have an id set, unless id is set in the options to false
+        if id is not in options tag, it will be set to a varient of the name. 
+        If set to true, it will be set to a unique id
+        if set to a text value that value will be used
+
+
+  ***********************************************************************************/
+
+  method "text_field_tag"($name;$val;$opt=0)
+    $result := '<input type="text" name="$name" value="$val"'
+    _setID($name;$opt)
+    if($opt)
+      $result += html_options($opt)
+    end if
+    $result += " />"
+    return($result)
+  end method
+  
+  method "password_field_tag"($name;$val;$opt=0)
+    $result := '<input type="password" name="$name" value="$val"'
+    _setID($name;$opt)
+    if($opt)
+      $result += html_options($opt)
+    end if
+    $result += " />"
+    return($result)
+  end method
+
+  method "hidden_field_tag"($name;$val;$opt=0)
+    $result := '<input type="hidden" name="$name" value="$val"'
+    _setID($name;$opt)
+    if($opt)
+      $result += html_options($opt)
+    end if
+    $result += " />"
+    return($result)
+  end method
+
+  method "textarea_tag"($name;$val;$opt=0)
+    $result := '<textarea name="$name" '
+    _setID($name;$opt)
+    if($opt)
+      $result += html_options($opt)
+    end if
+    if('rows=' !~ $result)
+      $result += ' rows="3" cols="30"'
+    end if
+    $result += ' >$val</textarea>'
+    return($result)
+  end method
+
+  method "check_box_tag"($name;$val;$opt=0)
+    $result := '<input type="checkbox" name="$name" value="$val" '
+    _setID($name;$opt)
+    if($opt)
+      $result += html_options($opt)
+    end if
+    $result += " />"
+    return($result)
+  end method
+
+  method "radio_button_tag"($name;$val;$opt=0)
+    $result := '<input type="radio"  name="$name" value="$val" '
+    _setID($name;$opt)
+    if($opt)
+      $result += html_options($opt)
+    end if
+    $result += " />"
+    return($result)
+  end method
+
+  method "select_tag"($name;$selopt;$opt=0)
+    $result := '<select name="$name"  '
+    _setID($name;$opt)
+    if($opt)
+      $result += html_options($opt)
+    end if
+    $result += ' >$selopt</select>'
+    return($result)
+  end method
+  
+  /***********************************************************************************
+    html tags
+      generates html tags including setting the value and any html options
+
+      method "content_tag"($tag;$content;$opt=0)
+      method "link_to"($name;$href;$opt=0)
+      method "tag"($value;$href;$opt=0) (doug -> method "tag"($type_tag;$content;$attributes = new collection))
+        alias to content_tag 
+      method "span_with_style"($content;$style) (from doug's library)
+      
+
+  ***********************************************************************************/
+  
+  
+  method "content_tag"($tag;$content;$opt=0)
+    $result := '<$tag ' 
+    if($opt)
+      $result += html_options($opt)
+    end if
+    $result += ' >$content</$tag>'
+    return($result)
+  end method
+  
+  method "tag"($tag;$content;$opt=0)
+    return(content_tag(($tag;$content;$opt)))
+  end method
+  
+  method "link_to"($link;$href;$opt=0)
+    $result := '<a href="$href"'
+    if($opt)
+      if (type($opt) = is text) // take care of doug's target option
+    		return('<a href="$href" target="$target">$link</a>')
+      end if
+      $result += html_options($opt)
+    end if
+    $result += ' >$link</a>'
+    return($result)
+  end method
+  
+  method "span_with_style"($content;$style)
+    return('<span style="'+$style+'">'+$content+'</span>')
+  end method
+  
+  
+  /***********************************************************************************
+    Utilities, Formating and special operations
+
+  ***********************************************************************************/
+  
+  /***********************************************************************************
+      method "html_options"($opt)
+        set html options with key/value pairs in the $opt collection
+
+  ***********************************************************************************/
+
+
+    method "html_options"($opt)
+      $result := ""
+      if ($opt{"checked"})
+        $result += _setAttr($opt;"checked")
+      end if
+      if ($opt{"selected"})
+        $result += _setAttr($opt;"selected")
+      end if
+      if ($opt{"disabled"})
+        $result += _setAttr($opt;"disabled")
+      end if
+      if ($opt{"multiple"})
+        $result += _setAttr($opt;"multiple")
+      end if
+      if ($opt{"class"}) // only set class if not blank
+        $result += _setAttr($opt;"class")
+      end if
+
+      for each ($opt; $key; $value)
+        if ($key !~ "(multiple|disabled|selected|checked|class)")
+          $result += ' $key="$value"'
+        end if
+      end for each
+      return($result)
+    end method
+ 
+  /***********************************************************************************
+    chosenIf
+      Use this method to set the element's class to "set" for selected tabs, for example.
+      Example: $class := chosenIf("login/@";$circuit;$fuseaction) => Returns "set" if in the login circuit.
+      Result is "set" or "" which then can be used to convert to a different class name or action
+        $class := choose($class = "set";"selected";"")
+        
+  ***********************************************************************************/
+  
+  method  "chosenIf"($value;$circuit;$action)
+    $hasCircuit:=(position("/";$value)>0)
+    if($hasCircuit)
+      $myCircuit := slice string($value;"/";$myFuseaction)
+      $isSet := (($circuit=$myCircuit) & ($action=$myFuseaction))
+    else
+      $isSet := ($action=$value)
+    end if
+    return(choose($isSet;"set";""))
+  end method
+  
+
+  method "LDRow"($label;$data;$name="")
+    if (self{"labelFor"})
+      $label_for_tag :=  html.tag("label";$label;new collection("for";$name;"class";self{"lableForClass"}))
+      $label_tag := html.tag(self{"LabelWrapper"};$label_for_tag;new collection("class";self{"LabelClass"}))
+    else
+      $label_tag := html.tag(self{"LabelWrapper"};$label;new collection("class";self{"LabelClass"}))
+    end if
+    $label_tag := choose(self{"labelBreak"};$label_tag+"<br />";$label_tag)
+    $data_tag := html.tag(self{"DataWrapper"};$data;new collection("class";self{"DataClass"}))
+    return(html.tag(self{"LabelDataWrapper"};$label_tag + $data_tag;new collection("class";self{"LabelDataClass"})))
+  end method
+  
+  method "labelDataRow"($label;$inputType;$value;$name="";$optString="";$annotate="")
+    $opt := choose($optString;html.nc($optString);0)
+    $result := ""
+    $input := ""
+    case of
+    :($inputType = "text")
+      $input := html.text_field_tag($name;$value;$opt)
+    :($inputType = "password")
+      $input := html.password_field_tag($name;$value;$opt)
+    :($inputType = "textarea")
+      $input := html.textarea_tag($name;$value;$opt)
+    :($inputType = "hidden")
+      $input := html.hidden_field_tag($name;$value;$opt)
+    :($inputType = "radio")
+      $input := html.radio_button_tag($name;$value;$opt)
+    :($inputType = "checkbox")
+      $input := html.checkbox_tag($name;$value;$opt)
+    :($inputType = "select")
+      $input := html.select_tag($name;$value;$opt)
+    else
+      $input := $value  // in case error or just want value, no input
+    end case
+    return(html.LDRow($label;$input+$annotate);$name)
+  end method
+  
+  method "simple_table_row"($label;$style;$value)
+  	$style:= "text-align:left;"+$style
+  	return('<tr><td style="text-align:right"><b>$label: </b></td><td style="$style">$value</td></tr>')
+  end method
+  
+  /***********************************************************************************
+    Other methods form Doug's library
+      probably should be moved to a different library since not html oriented
+
+  ***********************************************************************************/
+  
+  
+  method "error_redirect"($NewURL;$ErrorMessage)
+  	if ($NewURL="")
+  		$NewURL:=fusebox.makeURL("root.main")
+  	end if
+  	session{"errmsg"} := $ErrorMessage
+  	redirect($NewURL)
+  end method
+
+  method "notice_redirect"($NewURL;$Message)
+  	if ($NewURL="")
+  		$NewURL:=fusebox.makeURL("root.main")
+  	end if
+  	session{"errmsg"} := 'info: $Message'
+  	redirect($NewURL)
+  end method
+  
+  
+  /***********************************************************************************
+    Private methods
+
+  ***********************************************************************************/
+  
+  
+  /***********************************************************************************
+    _setAttr
+
+    used to set checked, selected, disabled, and multiple form tag attributes
+    may be passed as a boolean
+  ***********************************************************************************/
+
+    method "_setAttr"($opt;$attr)
+      $result := ""
+      if (type($opt{$attr}) = is boolean)
+        if ($opt{$attr})
+          $result := ' $attr="$attr"'
+        end if
+      else
+        $result := ' $attr="$opt{$attr}"'
+      end if
+      return($result)
+    end method
+
+  /***********************************************************************************
+    _setID
+
+    $name   ->  Text    Name attribute of input, textarea or select tag
+    $opt    ->  collection  Containing html attributes
+    RESULT    <-  Text    $opt update to include id 
+
+    Convert the name to be a conforming HTML id value. Use that id if one is not present.
+    If $opt{"id"}  is True, append a unique id onto the converted name. If false, remove id from opt.
+  ***********************************************************************************/
+
+
+    method "_setID"($name;&$opt)
+      regex replace("/[\\[\\].]/";$name;"_";$tmpID)
+      if ($opt)
+        if (collection has($opt;"id"))
+          if (type($opt{"id"}) = is boolean)
+            // true = append unique id
+            // false = no id
+            if ($opt{"id"})
+              $opt{"id"} := $tmpID + "_" + a4d.web.getUniqueID
+            else
+              delete collection item($opt;"id")
+            end if
+          end if
+        else
+          $opt{"id"} := $tmpID
+        end if
+      else
+        $opt := new collection("id";$tmpID)
+      end if
+    end method
+
+
+end library
+
